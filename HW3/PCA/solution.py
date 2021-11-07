@@ -57,7 +57,12 @@ class PCA():
             Xp: The reduced data matrix after PCA of shape [n_components, n_samples].
         '''
         ### YOUR CODE HERE
-        
+        X = self.X
+        Xcenter = X - X.mean(axis=1, keepdims=True) #center
+        cov = Xcenter.dot(np.transpose(Xcenter)) / X.shape[1]
+        U, sigma, V = np.linalg.svd(cov)
+        Up = U[:,:self.n_components]
+        Xp = np.transpose(Up).dot(Xcenter)
         ### END YOUR CODE
         return Up, Xp
 
@@ -87,6 +92,8 @@ class PCA():
         '''
         ### YOUR CODE HERE
         
+        X_re = self.Up.dot(Xp)
+                
         ### END YOUR CODE
         return X_re
 
@@ -158,13 +165,41 @@ class AE(nn.Module):
         '''
 
         # Note: here for the network with weights sharing. Basically you need to follow the
-        
+
+        weights = torch.empty(self.n_features, self.d_hidden_rep)
+        init_weights = nn.init.kaiming_normal_(weights)
+        self.weights = nn.Parameter(init_weights)
+        self.w = self.weights      
 
         # Note: here for the network without weights sharing 
-        
+        weights = torch.empty(self.n_features, self.d_hidden_rep)
+        init_weights = nn.init.kaiming_normal_(weights)
+        self.weights = nn.Parameter(init_weights)
+        self.w = self.weights
+                   
+        weights_out = torch.empty(self.d_hidden_rep, self.n_features)
+        init_weights_out = nn.init.kaiming_normal_(weights_out)
+        self.weights_out = nn.Parameter(init_weights_out)
 
         # Note: here for the network with more layers and nonlinear functions  
-        
+        scaling = 2
+
+        weights_in_1 = torch.empty(self.n_features, scaling * self.d_hidden_rep)
+        init_weights_in_1 = nn.init.kaiming_normal_(weights_in_1)
+        self.weights_in_1 = nn.Parameter(init_weights_in_1)
+
+        weights_in_2 = torch.empty(scaling * self.d_hidden_rep, self.d_hidden_rep)
+        init_weights_in_2 = nn.init.kaiming_normal_(weights_in_2)
+        self.weights_in_2 = nn.Parameter(init_weights_in_2)
+        self.w = self.weights_in_2
+
+        weights_out_2 = torch.empty(self.d_hidden_rep, scaling * self.d_hidden_rep)
+        init_weights_out_2 = nn.init.kaiming_normal_(weights_out_2)
+        self.weights_out_2 = nn.Parameter(init_weights_out_2)
+
+        weights_out_1 = torch.empty(scaling * self.d_hidden_rep, self.n_features)
+        init_weights_out_1 = nn.init.kaiming_normal_(weights_out_1)
+        self.weights_out_1 = nn.Parameter(init_weights_out_1)        
 
         
         ### END YOUR CODE
@@ -198,13 +233,22 @@ class AE(nn.Module):
 
         # Note: here for the network with weights sharing. Basically you need to follow the
         # formula (WW^TX) in the note at http://people.tamu.edu/~sji/classes/PCA.pdf .
-
+        hidden = torch.mm(self.weights.t(), X)
+        output = torch.mm(self.weights, hidden)
+        return output 
 
         # Note: here for the network without weights sharing 
-
+        hidden = torch.mm(self.weights.t(), X)
+        output = torch.mm(self.weights_out.t(), hidden)
+        return output   
 
         # Note: here for the network with more layers and nonlinear functions  
-
+        hidden1_in = torch.relu(torch.mm(self.weights_in_1.t(), X))
+        hidden2_in = torch.relu(torch.mm(self.weights_in_2.t(), hidden1_in))
+        hidden2_out = torch.relu(torch.mm(self.weights_out_2.t(), hidden2_in))
+        hidden1_out = torch.sigmoid(torch.mm(self.weights_out_1.t(), hidden2_out))
+        
+        return hidden1_out
 
         ### END YOUR CODE
 
@@ -306,15 +350,19 @@ class AE(nn.Module):
         with torch.no_grad():
             for i in range(n_samples):
                 ### YOUR CODE HERE
-                
+                curr_X = X[:,i]
+                curr_X = np.expand_dims(curr_X,1)
                 # Note: Format input curr_X to the shape [n_features, 1]
     
                 ### END YOUR CODE            
                 curr_X_tensor = torch.tensor(curr_X).float()
                 curr_X_re_tensor = self._forward(curr_X_tensor)
                 ### YOUR CODE HERE
-                
+                if i==0:
+                    X_re = np.zeros((self.n_features, n_samples))
+                X_re[:,i] = curr_X_re_tensor.squeeze().numpy()
                 # Note: To achieve final reconstructed data matrix with the shape [n_features, n_any].
-    
+                
+  
             ### END YOUR CODE 
         return X_re
